@@ -1,61 +1,40 @@
 # BatteryLIMS — run it locally
 
-BatteryLIMS provides a local PostgreSQL database, API, and Streamlit interface for battery R&D tracking. This is an early prototype: use test data until you have validated permissions, backups, audit requirements, vendor-specific imports, and data retention for your lab.
+BatteryLIMS provides a local PostgreSQL database, API, and Streamlit interface for battery R&D tracking. This is an early prototype: use test data until you validate permissions, backups, audit requirements, vendor-specific imports, and data retention.
 
-## Start the complete system (recommended)
+## Start the complete system
 
-Install Docker Desktop (or Docker Engine with Compose), clone this repository, then run:
+Install Docker Desktop (or Docker Engine with Compose), clone the repository, then run:
 
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
 
-Open:
-- Dashboard: http://localhost:8501
-- API documentation: http://localhost:8000/docs
-- Health check: http://localhost:8000/health
+Open dashboard at http://localhost:8501, API docs at http://localhost:8000/docs, and health check at http://localhost:8000/health. Stop with Ctrl+C. Data persists in the Docker volume. `docker compose down -v` permanently deletes local database data.
 
-Stop with `Ctrl+C`; run `docker compose down` to stop services. Database files persist in the Docker volume. To permanently reset local data, run `docker compose down -v` (destructive).
+The default password is for local development only. Change `POSTGRES_PASSWORD` in `.env` before exposing services beyond your machine; do not expose this prototype directly to the internet.
 
-The default password is for local development only. Change `POSTGRES_PASSWORD` in `.env` before exposing services beyond your machine. Do not expose this prototype directly to the internet.
+## Load traceability demo data
 
-## Start without Docker for the app
-
-Run PostgreSQL locally, create an empty `batterylims` database, then:
+After the services are running and migrations have completed, open a second terminal in the repository and run:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
-pip install -r requirements.txt
-cp .env.example .env
-alembic upgrade head
-uvicorn app.main:app --reload
+docker compose exec -T postgres psql -U postgres -d batterylims < scripts/seed_traceability_demo.sql
 ```
 
-In another terminal run `streamlit run streamlit_app/Home.py`. Set `DATABASE_URL` and `API_URL` in `.env` if your local configuration differs.
+The seed script can be re-run without duplicating the demo business records. Refresh the dashboard to view suppliers/materials, inventory, formulations, ten cells, manufacturing genealogy, experiment/ELN data, and the sample test execution. Data is illustrative and should not be treated as measured performance.
 
-## Workflows available in the UI
+## Workflows
 
-- Register suppliers/material lots and inventory records
-- Create formulations and add material components
-- Register cells and link them to formulations
-- Create manufacturing runs, associate cells, and record process parameters
-- Create experiments, link cells, and record ELN entries
-- Define test protocols, create test executions, and import cycle-summary CSVs
-- Browse cycle records and operational lists
+The Streamlit app supports supplier/material registration, inventory records, formulation recipes, cell builds, manufacturing runs/parameters, experiment and ELN entry, protocols, test execution, and cycle-summary CSV import. API docs are available at `/docs`.
 
-The API validates required fields and unique codes. It does not yet include authentication, role permissions, append-only inventory transactions, attachment upload, automatic summary result calculation, or production-ready audit trail.
+CSV imports require one summary row per cycle and recognized cycle-number headers. Confirm units and vendor column meaning before importing. Raw uploads are retained in `data/cycler`; this is not a validated vendor parser or raw time-series importer. Authentication, role permissions, append-only inventory transactions, attachment storage, and production-grade audit controls are not yet implemented.
 
-## Cycler CSV import requirements
-
-Import requires a CSV with one summary row per cycle and a recognized cycle column (`cycle`, `cycle index`, `cycle_number`, etc.). Common capacity, energy, resistance, efficiency, and timestamp headers are normalized. Values are preserved as supplied; confirm units and vendor-specific column meaning before importing. Raw uploaded CSVs are stored in `data/cycler` and linked to the execution. Exact duplicate uploads for one execution are rejected. This is a generic summary-data importer, not a validated Arbin/Maccor/Neware parser or raw time-series importer.
-
-## Development and tests
+## Development
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
+alembic upgrade head
 pytest
 ```
-
-Database migrations are applied automatically when the Compose API starts. For local app runs, use `alembic upgrade head` before starting the API.
