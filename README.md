@@ -1,89 +1,61 @@
-# BatteryLIMS
+# BatteryLIMS — run it locally
 
-BatteryLIMS is a starter platform for battery R&D traceability: material lots and inventory, formulation recipes, cell genealogy, manufacturing runs, ELN records, DOE experiments, test protocols/executions, and cycle-level cycler data.
+BatteryLIMS provides a local PostgreSQL database, API, and Streamlit interface for battery R&D tracking. This is an early prototype: use test data until you have validated permissions, backups, audit requirements, vendor-specific imports, and data retention for your lab.
 
-> **Prototype status:** This is a software scaffold, not a validated laboratory information system. Verify units, instrument export mappings, data integrity, access controls, retention, and backups before operational use. The Streamlit page currently shows illustrative data only.
+## Start the complete system (recommended)
 
-## Project plan
-
-### Milestone 1 — Foundation (implemented scaffold)
-- PostgreSQL schema under `battery_lims`
-- SQLAlchemy domain models and Alembic bootstrap migration
-- FastAPI CRUD starter endpoints for suppliers, materials, formulations, cells, manufacturing runs, experiments, and test executions
-- CSV cycler column normalization helpers and basic analytics
-- Streamlit dashboard placeholder
-
-### Milestone 2 — Lab workflows
-- Add inventory transaction history (receipts, consumption, adjustments) rather than editing only a balance
-- Add formulation component and cell-to-run APIs with genealogy validation
-- Add ELN attachment storage integration and immutable audit events
-- Add protocol management and test execution state transitions
-
-### Milestone 3 — Data ingestion and quality
-- Implement vendor-specific Arbin, Maccor, and Neware adapters with representative, authorized export fixtures
-- Validate headers, units, duplicate cycles, timestamps, and source checksums before import
-- Store raw files in durable object storage and link imports to execution records
-- Make imports idempotent and preserve source provenance; never silently overwrite raw data
-
-### Milestone 4 — Analytics and reporting
-- Calculate retention, cycle-to-threshold, coulombic efficiency, resistance growth, and yield with defined conventions
-- Export curated DOE tables to JMP/CSV; record factor/response units and experiment design metadata
-- Connect Streamlit to read-only API endpoints; mark sample/demo data clearly
-
-### Milestone 5 — Operational readiness
-- Authentication/authorization, audit trail, secrets management, migrations/backups, monitoring, and tests
-- Validate with lab users and instrument-specific fixtures before production deployment
-
-## Data model
-
-The PostgreSQL schema is `battery_lims`. UUIDs identify materials, formulations, cells, experiments, test protocols/executions, and result records; supplier and join/measurement records use integer keys. Recipe components represent arbitrary material mixtures. Cells link to manufacturing runs and experiments through association tables. Test executions link a cell to a protocol and cycler; `cycle_data` stores the per-cycle series and `test_results` stores one summary per execution.
-
-| Area | Tables |
-|---|---|
-| Supplier/material/inventory | `suppliers`, `materials`, `inventory` |
-| Formulations/cells | `formulations`, `formulation_components`, `cells` |
-| MES-lite | `manufacturing_runs`, `process_parameters`, `cell_manufacturing` |
-| DOE/ELN | `experiments`, `experiment_cells`, `eln_entries` |
-| Testing | `test_protocols`, `test_executions`, `cycle_data`, `test_results` |
-
-## Quick start
-
-Requires Python 3.10+ and Docker Compose.
+Install Docker Desktop (or Docker Engine with Compose), clone this repository, then run:
 
 ```bash
 cp .env.example .env
-docker compose up -d postgres
+docker compose up --build
+```
+
+Open:
+- Dashboard: http://localhost:8501
+- API documentation: http://localhost:8000/docs
+- Health check: http://localhost:8000/health
+
+Stop with `Ctrl+C`; run `docker compose down` to stop services. Database files persist in the Docker volume. To permanently reset local data, run `docker compose down -v` (destructive).
+
+The default password is for local development only. Change `POSTGRES_PASSWORD` in `.env` before exposing services beyond your machine. Do not expose this prototype directly to the internet.
+
+## Start without Docker for the app
+
+Run PostgreSQL locally, create an empty `batterylims` database, then:
+
+```bash
 python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
 pip install -r requirements.txt
+cp .env.example .env
 alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
-Open API docs at `http://localhost:8000/docs`. In another terminal, run `streamlit run streamlit_app/Home.py`.
+In another terminal run `streamlit run streamlit_app/Home.py`. Set `DATABASE_URL` and `API_URL` in `.env` if your local configuration differs.
 
-`DATABASE_URL` can be set in `.env`; the default local URL is `postgresql://postgres:postgres@localhost:5432/batterylims`. The application tables are created in the `battery_lims` PostgreSQL schema.
+## Workflows available in the UI
 
-## Example API payloads
+- Register suppliers/material lots and inventory records
+- Create formulations and add material components
+- Register cells and link them to formulations
+- Create manufacturing runs, associate cells, and record process parameters
+- Create experiments, link cells, and record ELN entries
+- Define test protocols, create test executions, and import cycle-summary CSVs
+- Browse cycle records and operational lists
 
-Create a supplier:
+The API validates required fields and unique codes. It does not yet include authentication, role permissions, append-only inventory transactions, attachment upload, automatic summary result calculation, or production-ready audit trail.
 
-```json
-{"supplier_name":"Example supplier","contact_name":"Lab contact","email":"lab@example.com"}
+## Cycler CSV import requirements
+
+Import requires a CSV with one summary row per cycle and a recognized cycle column (`cycle`, `cycle index`, `cycle_number`, etc.). Common capacity, energy, resistance, efficiency, and timestamp headers are normalized. Values are preserved as supplied; confirm units and vendor-specific column meaning before importing. Raw uploaded CSVs are stored in `data/cycler` and linked to the execution. Exact duplicate uploads for one execution are rejected. This is a generic summary-data importer, not a validated Arbin/Maccor/Neware parser or raw time-series importer.
+
+## Development and tests
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+pytest
 ```
 
-Create a material lot:
-
-```json
-{"material_code":"MAT-0001","material_name":"Graphite powder","material_type":"Anode","lot_number":"LOT-001","purity":99.8,"received_date":"2026-01-15"}
-```
-
-See the OpenAPI page for current endpoints and request shapes.
-
-## Cycler importer
-
-`app.services.cycler_import.import_cycler_csv(path, cycler_type="Arbin")` reads a CSV and normalizes common column names to `cycle_number`, `charge_capacity`, `discharge_capacity`, `coulombic_efficiency`, `energy_wh`, `dc_resistance`, and `timestamp_recorded`. Vendor exports differ, so confirm source units and headers and review the imported dataframe before saving it. The current helper does **not** persist results to the database and is not a certified vendor parser.
-
-## Notes on schema evolution
-
-The first Alembic revision bootstraps the model metadata for a new database. Treat released migrations as immutable; create explicit Alembic revisions for subsequent schema changes. `create_all` is used only for this initial empty-database bootstrap, not as a production migration strategy.
+Database migrations are applied automatically when the Compose API starts. For local app runs, use `alembic upgrade head` before starting the API.
