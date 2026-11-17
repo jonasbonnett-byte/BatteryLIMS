@@ -1,93 +1,108 @@
-from datetime import datetime
-from typing import Optional
+"""Pydantic request/response models for the API."""
 
-from pydantic import BaseModel, Field
+from datetime import date, datetime
+from decimal import Decimal
+from typing import Optional
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class ORMModel(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SupplierCreate(BaseModel):
-    name: str
-    country: Optional[str] = None
+    supplier_name: str = Field(min_length=1, max_length=255)
+    contact_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
 
 
-class SupplierRead(SupplierCreate):
-    id: int
+class SupplierRead(SupplierCreate, ORMModel):
+    supplier_id: int
     created_at: datetime
 
 
 class MaterialCreate(BaseModel):
-    material_code: str = Field(..., min_length=3)
+    material_code: str = Field(min_length=1, max_length=50)
+    material_name: str = Field(min_length=1, max_length=255)
+    material_type: str = Field(min_length=1, max_length=50)
     supplier_id: Optional[int] = None
-    chemistry: str
     lot_number: Optional[str] = None
-    received_date: Optional[datetime] = None
-    purity: Optional[float] = None
+    purity: Optional[Decimal] = Field(default=None, ge=0, le=100)
     storage_location: Optional[str] = None
-
-
-class MaterialRead(MaterialCreate):
-    id: int
-    created_at: datetime
-
-
-class FormulationCreate(BaseModel):
-    name: str
-    anode_material_id: int
-    cathode_material_id: int
-    electrolyte: str
-    binder: Optional[str] = None
+    received_date: Optional[date] = None
+    expiration_date: Optional[date] = None
     notes: Optional[str] = None
 
 
-class FormulationRead(FormulationCreate):
-    id: int
+class MaterialRead(MaterialCreate, ORMModel):
+    material_id: UUID
+    created_at: datetime
+
+
+class InventoryCreate(BaseModel):
+    material_id: UUID
+    quantity: Optional[Decimal] = Field(default=None, ge=0)
+    units: Optional[str] = None
+    location: Optional[str] = None
+
+
+class FormulationCreate(BaseModel):
+    formulation_code: str = Field(min_length=1, max_length=50)
+    description: Optional[str] = None
+    created_by: Optional[str] = None
+
+
+class FormulationRead(FormulationCreate, ORMModel):
+    formulation_id: UUID
     created_at: datetime
 
 
 class CellCreate(BaseModel):
-    cell_code: str
-    formulation_id: int
-    build_date: Optional[datetime] = None
-    cell_type: str
-    status: Optional[str] = "planned"
+    cell_code: str = Field(min_length=1, max_length=50)
+    formulation_id: Optional[UUID] = None
+    cell_type: Optional[str] = None
+    build_date: Optional[date] = None
+    operator_name: Optional[str] = None
+    status: Optional[str] = "ACTIVE"
     notes: Optional[str] = None
 
 
-class CellRead(CellCreate):
-    id: int
+class CellRead(CellCreate, ORMModel):
+    cell_id: UUID
     created_at: datetime
 
 
-class TestResultCreate(BaseModel):
-    test_code: str
-    cell_id: int
-    cycler: str
-    cycle_count: int = 0
-    capacity_mah: Optional[float] = None
-    energy_wh: Optional[float] = None
-    resistance_ohm: Optional[float] = None
-    test_date: Optional[datetime] = None
-    import_source: Optional[str] = None
+class ManufacturingRunCreate(BaseModel):
+    run_code: str = Field(min_length=1, max_length=50)
+    process_step: Optional[str] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    operator_name: Optional[str] = None
+    notes: Optional[str] = None
 
 
-class TestResultRead(TestResultCreate):
-    id: int
-    created_at: datetime
+class ExperimentCreate(BaseModel):
+    experiment_code: str = Field(min_length=1, max_length=50)
+    objective: Optional[str] = None
+    created_by: Optional[str] = None
 
 
-class ProcessStepCreate(BaseModel):
-    cell_id: int
-    step_name: str
-    mixing_time_min: Optional[float] = None
-    rpm: Optional[float] = None
-    temperature_c: Optional[float] = None
-    humidity_pct: Optional[float] = None
-    web_speed_mms: Optional[float] = None
-    coating_gap_mm: Optional[float] = None
-    calendering_pressure_mpa: Optional[float] = None
-    formation_charge_rate_c: Optional[float] = None
-    rest_time_min: Optional[float] = None
+class ELNEntryCreate(BaseModel):
+    experiment_id: Optional[UUID] = None
+    title: Optional[str] = None
+    notebook_text: Optional[str] = None
+    attachment_path: Optional[str] = None
+    entered_by: Optional[str] = None
 
 
-class ProcessStepRead(ProcessStepCreate):
-    id: int
-    created_at: datetime
+class TestExecutionCreate(BaseModel):
+    cell_id: Optional[UUID] = None
+    protocol_id: Optional[UUID] = None
+    cycler_type: Optional[str] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    raw_file_path: Optional[str] = None
+    status: Optional[str] = "PLANNED"

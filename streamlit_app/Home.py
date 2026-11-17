@@ -2,30 +2,17 @@ import pandas as pd
 import streamlit as st
 
 st.set_page_config(page_title="BatteryLIMS", page_icon="🔋", layout="wide")
-
 st.title("BatteryLIMS Dashboard")
-st.caption("Battery R&D, materials traceability, and process intelligence")
+st.caption("Battery R&D, material traceability, cell genealogy, and test operations")
 
+st.info("Dashboard demo data only. Connect the API before using these figures for lab decisions.")
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("Active Materials", 145)
-col2.metric("Cells in Build", 38)
-col3.metric("Avg Capacity Retention", "92.4%")
-col4.metric("DOE Experiments", 12)
+col1.metric("Materials", "—")
+col2.metric("Cells", "—")
+col3.metric("Test executions", "—")
+col4.metric("Experiments", "—")
 
-st.subheader("Core signals")
-
-sample = pd.DataFrame(
-    {
-        "Cycle": list(range(1, 11)),
-        "Capacity Retention": [1.00, 0.99, 0.97, 0.96, 0.94, 0.91, 0.89, 0.87, 0.84, 0.81],
-    }
-)
-
+st.subheader("Example capacity retention")
+sample = pd.DataFrame({"Cycle": range(1, 11), "Capacity retention": [1.00, .99, .97, .96, .94, .91, .89, .87, .84, .81]})
 st.line_chart(sample.set_index("Cycle"))
-
-st.subheader("Operational summary")
-with st.container():
-    st.write("- Material inventory and lot tracking")
-    st.write("- Cell genealogy and build status")
-    st.write("- Cycler import queue for Arbin/Maccor/Neware")
-    st.write("- DOE and manufacturing parameter correlations")
+st.caption("Illustrative series only; not connected to a cycler or database.")

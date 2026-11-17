@@ -1,115 +1,89 @@
 # BatteryLIMS
 
-BatteryLIMS is a personal battery R&D platform for material traceability, cell genealogy, cycler data ingestion, process tracking, analytics, and DOE-driven optimization.
+BatteryLIMS is a starter platform for battery R&D traceability: material lots and inventory, formulation recipes, cell genealogy, manufacturing runs, ELN records, DOE experiments, test protocols/executions, and cycle-level cycler data.
 
-## Project goal
-
-Create a lightweight but industry-inspired battery lab management stack that combines:
-
-- LIMS for material and sample traceability
-- ELN for experimental notes and procedures
-- MES-lite for manufacturing process tracking
-- Cycler import pipeline for Arbin, Maccor, and Neware files
-- Python analytics for cycle life and performance modeling
-- Streamlit dashboard for operational visibility
-- PostgreSQL as the single source of truth
-
-## Architecture
-
-- API: FastAPI
-- Database: PostgreSQL + SQLAlchemy
-- Migrations: Alembic
-- Dashboard: Streamlit
-- Analytics: pandas, numpy, scipy, scikit-learn
-- ETL: Python batch ingestion for cycler exports
+> **Prototype status:** This is a software scaffold, not a validated laboratory information system. Verify units, instrument export mappings, data integrity, access controls, retention, and backups before operational use. The Streamlit page currently shows illustrative data only.
 
 ## Project plan
 
-### Phase 1 — Foundation
-- Set up repository, dependencies, database, and migration flow
-- Design core entities: materials, formulations, cells, tests, process records
-- Create baseline CRUD endpoints
+### Milestone 1 — Foundation (implemented scaffold)
+- PostgreSQL schema under `battery_lims`
+- SQLAlchemy domain models and Alembic bootstrap migration
+- FastAPI CRUD starter endpoints for suppliers, materials, formulations, cells, manufacturing runs, experiments, and test executions
+- CSV cycler column normalization helpers and basic analytics
+- Streamlit dashboard placeholder
 
-### Phase 2 — Data ingestion
-- Build CSV/XLSX import scripts for Arbin, Maccor, and Neware test exports
-- Map raw cycler data into normalized `test_results` tables
-- Add validation and data quality checks
+### Milestone 2 — Lab workflows
+- Add inventory transaction history (receipts, consumption, adjustments) rather than editing only a balance
+- Add formulation component and cell-to-run APIs with genealogy validation
+- Add ELN attachment storage integration and immutable audit events
+- Add protocol management and test execution state transitions
 
-### Phase 3 — Analytics and ML
-- Compute capacity retention, cycle life, and coulombic efficiency
-- Build regression models for cycle life and performance prediction
-- Track DOE factors and responses
+### Milestone 3 — Data ingestion and quality
+- Implement vendor-specific Arbin, Maccor, and Neware adapters with representative, authorized export fixtures
+- Validate headers, units, duplicate cycles, timestamps, and source checksums before import
+- Store raw files in durable object storage and link imports to execution records
+- Make imports idempotent and preserve source provenance; never silently overwrite raw data
 
-### Phase 4 — Manufacturing intelligence
-- Add process variables and genealogy tracking
-- Correlate mixing, coating, calendering, and formation parameters with outcomes
-- Build yield and scrap insights
+### Milestone 4 — Analytics and reporting
+- Calculate retention, cycle-to-threshold, coulombic efficiency, resistance growth, and yield with defined conventions
+- Export curated DOE tables to JMP/CSV; record factor/response units and experiment design metadata
+- Connect Streamlit to read-only API endpoints; mark sample/demo data clearly
 
-### Phase 5 — Reporting and operations
-- Streamlit dashboards for R&D, process, and inventory summaries
-- Generate reports and export CSV summaries for JMP or Power BI
+### Milestone 5 — Operational readiness
+- Authentication/authorization, audit trail, secrets management, migrations/backups, monitoring, and tests
+- Validate with lab users and instrument-specific fixtures before production deployment
 
-## Repository layout
+## Data model
 
-- `app/` — FastAPI app and database models
-- `streamlit_app/` — dashboard front-end
-- `scripts/` — utilities and seed scripts
-- `alembic/` — migrations for schema changes
-- `docker-compose.yml` — local PostgreSQL environment
+The PostgreSQL schema is `battery_lims`. UUIDs identify materials, formulations, cells, experiments, test protocols/executions, and result records; supplier and join/measurement records use integer keys. Recipe components represent arbitrary material mixtures. Cells link to manufacturing runs and experiments through association tables. Test executions link a cell to a protocol and cycler; `cycle_data` stores the per-cycle series and `test_results` stores one summary per execution.
+
+| Area | Tables |
+|---|---|
+| Supplier/material/inventory | `suppliers`, `materials`, `inventory` |
+| Formulations/cells | `formulations`, `formulation_components`, `cells` |
+| MES-lite | `manufacturing_runs`, `process_parameters`, `cell_manufacturing` |
+| DOE/ELN | `experiments`, `experiment_cells`, `eln_entries` |
+| Testing | `test_protocols`, `test_executions`, `cycle_data`, `test_results` |
 
 ## Quick start
 
-1. Create the local environment
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
+Requires Python 3.10+ and Docker Compose.
 
-2. Start PostgreSQL
-   ```bash
-   docker compose up -d postgres
-   ```
+```bash
+cp .env.example .env
+docker compose up -d postgres
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --reload
+```
 
-3. Copy environment settings
-   ```bash
-   cp .env.example .env
-   ```
+Open API docs at `http://localhost:8000/docs`. In another terminal, run `streamlit run streamlit_app/Home.py`.
 
-4. Initialize database
-   ```bash
-   alembic upgrade head
-   ```
+`DATABASE_URL` can be set in `.env`; the default local URL is `postgresql://postgres:postgres@localhost:5432/batterylims`. The application tables are created in the `battery_lims` PostgreSQL schema.
 
-5. Start the API
-   ```bash
-   uvicorn app.main:app --reload
-   ```
+## Example API payloads
 
-6. Start the dashboard
-   ```bash
-   streamlit run streamlit_app/Home.py
-   ```
+Create a supplier:
 
-## Example data model
+```json
+{"supplier_name":"Example supplier","contact_name":"Lab contact","email":"lab@example.com"}
+```
 
-Core domain objects:
+Create a material lot:
 
-- `materials`: supplier, lot, chemistry, purity
-- `formulations`: anode, cathode, electrolyte, binder
-- `cells`: cell code, build date, cell type, status
-- `test_results`: capacity, energy, resistance, cycle count, cycler source
-- `process_steps`: mixing, coating, calendering, formation metadata
-- `doe_experiments`: DOE factors and responses
+```json
+{"material_code":"MAT-0001","material_name":"Graphite powder","material_type":"Anode","lot_number":"LOT-001","purity":99.8,"received_date":"2026-01-15"}
+```
 
-## Suggested next milestones
+See the OpenAPI page for current endpoints and request shapes.
 
-- Add strong validation for material traceability and cell genealogy
-- Build an upload UI for cycler files
-- Add JWT-based user auth for lab users
-- Add CSV export for JMP and reporting workflows
-- Add ML model endpoint for pre-build predictions
+## Cycler importer
 
-## License
+`app.services.cycler_import.import_cycler_csv(path, cycler_type="Arbin")` reads a CSV and normalizes common column names to `cycle_number`, `charge_capacity`, `discharge_capacity`, `coulombic_efficiency`, `energy_wh`, `dc_resistance`, and `timestamp_recorded`. Vendor exports differ, so confirm source units and headers and review the imported dataframe before saving it. The current helper does **not** persist results to the database and is not a certified vendor parser.
 
-This project is intended as a portfolio and applied R&D starter project.
+## Notes on schema evolution
+
+The first Alembic revision bootstraps the model metadata for a new database. Treat released migrations as immutable; create explicit Alembic revisions for subsequent schema changes. `create_all` is used only for this initial empty-database bootstrap, not as a production migration strategy.
